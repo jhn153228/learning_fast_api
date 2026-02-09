@@ -16,6 +16,20 @@ class Settings(BaseSettings):
     # CORS settings
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
     
+    # Database settings
+    DATABASE_URL: str = "postgresql://fastapi_user:fastapi_password@localhost:5432/fastapi_db"
+
+    # Redis settings
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 7379
+    REDIS_DB: int = 0
+    REDIS_URL: str = "redis://localhost:7379/0"
+
+    # JWT settings
+    SECRET_KEY: str = "your-secret-key-change-this-in-production"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
     class Config:
         case_sensitive = True
         env_file = ".env"

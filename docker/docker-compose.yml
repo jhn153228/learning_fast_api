@@ -1,0 +1,107 @@
+
+services:
+  # PostgreSQL 데이터베이스
+  db:
+    image: postgres:16-alpine
+    container_name: learning_fastapi_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=fastapi_user
+      - POSTGRES_PASSWORD=fastapi_password
+      - POSTGRES_DB=fastapi_db
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - learning_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fastapi_user -d fastapi_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI 애플리케이션
+  app:
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile
+    container_name: learning_fastapi_app
+    ports:
+      - "${PORT:-8001}:${PORT:-8001}"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=${PORT:-8001}
+      - DATABASE_URL=postgresql://fastapi_user:fastapi_password@db:5432/fastapi_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=7379
+      - REDIS_URL=redis://redis:7379/0
+      - PROJECT_NAME=${PROJECT_NAME:-Learning FastAPI}
+      - VERSION=${VERSION:-0.1.0}
+    volumes:
+      - ../app:/app/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+    networks:
+      - learning_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 캐시 및 큐 브로커
+  redis:
+    image: redis:7-alpine
+    container_name: learning_fastapi_redis
+    ports:
+      - "7379:7379"
+    volumes:
+      - redis_data:/data
+    command: sh -c "redis-server --port 7379 --appendonly yes"
+    networks:
+      - learning_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # RQ Worker (Redis Queue 백그라운드 작업 처리)
+  worker:
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile
+    container_name: learning_fastapi_worker
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=7379
+      - REDIS_URL=redis://redis:7379/0
+      - DATABASE_URL=postgresql://fastapi_user:fastapi_password@db:5432/fastapi_db
+    volumes:
+      - ../app:/app/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      app:
+        condition: service_started
+    command: rq worker -u redis://redis:7379/0 default high low
+    networks:
+      - learning_network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  learning_network:
+    driver: bridge
+
