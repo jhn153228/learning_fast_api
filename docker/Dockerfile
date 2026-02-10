@@ -18,7 +18,9 @@ COPY pyproject.toml ./
 COPY uv.lock* ./
 
 # uv를 사용하여 의존성 설치
-RUN uv pip install --system bcrypt>=4.0.0 && uv pip install --system psycopg2-binary>=2.9.9 fastapi>=0.128.0 uvicorn>=0.40.0 pydantic-settings>=2.0.0 sqlmodel>=0.0.32 redis>=5.0.0 rq>=1.15.0 python-dotenv>=1.0.0 email-validator>=2.0.0 "python-jose[cryptography]>=3.3.0" python-multipart>=0.0.6
+RUN uv pip install --system bcrypt>=4.2.0 && \
+    uv pip install --system "passlib[bcrypt]>=1.7.4" && \
+    uv pip install --system psycopg2-binary>=2.9.9 fastapi>=0.128.0 uvicorn>=0.40.0 pydantic-settings>=2.0.0 sqlmodel>=0.0.32 redis>=5.0.0 rq>=1.15.0 python-dotenv>=1.0.0 email-validator>=2.0.0 "python-jose[cryptography]>=3.3.0" python-multipart>=0.0.6
 
 # 실행 단계
 FROM python:3.13-slim

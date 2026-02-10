@@ -1,15 +1,14 @@
 from datetime import timedelta
+
 from fastapi import HTTPException, status
 from sqlmodel import Session
-from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin
-from app.core.security import (
-    get_password_hash,
-    verify_password,
-    create_access_token,
-)
+
+from app.api.auth.schemas import UserLogin
+from app.api.users.models import User
+from app.api.users.schemas import UserCreate
+from app.api.users.service import UserService
 from app.core.config import settings
-from app.services.user_service import UserService
+from app.core.security import create_access_token, verify_password
 
 
 class AuthService:
@@ -42,12 +41,9 @@ class AuthService:
             )
 
         # JWT 토큰 생성
-        access_token_expires = timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
-            data={"sub": db_user.email},
-            expires_delta=access_token_expires
+            data={"sub": db_user.email}, expires_delta=access_token_expires
         )
 
         return {"access_token": access_token, "token_type": "bearer"}
@@ -56,4 +52,3 @@ class AuthService:
     def get_current_user_info(current_user: User) -> User:
         """현재 로그인한 사용자 정보 반환"""
         return current_user
-

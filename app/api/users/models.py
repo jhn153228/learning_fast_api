@@ -1,6 +1,7 @@
-from sqlmodel import SQLModel, Field
 from datetime import datetime
 from typing import Optional
+
+from sqlmodel import Field, SQLModel
 
 
 class User(SQLModel, table=True):
@@ -12,4 +13,3 @@ class User(SQLModel, table=True):
     name: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-

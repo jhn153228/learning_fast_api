@@ -1,14 +1,9 @@
-from datetime import timedelta
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
-from app.models.user import User
-from app.schemas.user import UserCreate, UserUpdate
-from app.core.security import (
-    get_password_hash,
-    verify_password,
-    create_access_token,
-)
-from app.core.config import settings
+
+from app.api.users.models import User
+from app.api.users.schemas import UserCreate, UserUpdate
+from app.core.security import get_password_hash
 
 
 class UserService:
@@ -17,9 +12,7 @@ class UserService:
     @staticmethod
     def get_user_by_email(session: Session, email: str) -> User | None:
         """이메일로 사용자 조회"""
-        return session.exec(
-            select(User).where(User.email == email)
-        ).first()
+        return session.exec(select(User).where(User.email == email)).first()
 
     @staticmethod
     def get_user_by_id(session: Session, user_id: int) -> User | None:
@@ -39,7 +32,7 @@ class UserService:
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="이메일이 이미 등록되어 있습니다"
+                detail="이메일이 이미 등록되어 있습니다",
             )
 
         # 패스워드 해싱
@@ -47,9 +40,7 @@ class UserService:
 
         # 사용자 생성
         db_user = User(
-            email=user_data.email,
-            hashed_password=hashed_password,
-            name=user_data.name
+            email=user_data.email, hashed_password=hashed_password, name=user_data.name
         )
         session.add(db_user)
         session.commit()
@@ -58,24 +49,21 @@ class UserService:
 
     @staticmethod
     def update_user(
-        session: Session,
-        user_id: int,
-        user_update: UserUpdate,
-        current_user: User
+        session: Session, user_id: int, user_update: UserUpdate, current_user: User
     ) -> User:
         """사용자 정보 수정"""
         user = UserService.get_user_by_id(session, user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="사용자를 찾을 수 없습니다"
+                detail="사용자를 찾을 수 없습니다",
             )
 
         # 권한 확인: 본인만 수정 가능
         if current_user.id != user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="다른 사용자의 정보를 수정할 수 없습니다"
+                detail="다른 사용자의 정보를 수정할 수 없습니다",
             )
 
         # 업데이트 데이터 처리
@@ -100,16 +88,15 @@ class UserService:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="사용자를 찾을 수 없습니다"
+                detail="사용자를 찾을 수 없습니다",
             )
 
         # 권한 확인: 본인만 삭제 가능
         if current_user.id != user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="다른 사용자를 삭제할 수 없습니다"
+                detail="다른 사용자를 삭제할 수 없습니다",
             )
 
         session.delete(user)
         session.commit()
-

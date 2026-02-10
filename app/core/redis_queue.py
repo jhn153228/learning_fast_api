@@ -1,5 +1,6 @@
 import redis
 from rq import Queue
+
 from app.core.config import settings
 
 
@@ -17,4 +18,3 @@ default_queue = Queue(connection=redis_conn)
 # 우선순위별 큐 (선택사항)
 high_priority_queue = Queue("high", connection=redis_conn)
 low_priority_queue = Queue("low", connection=redis_conn)
-
