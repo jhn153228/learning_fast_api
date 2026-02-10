@@ -45,9 +45,10 @@ learning_fast_api/
 ## 주요 기능
 
 ### 1. PostgreSQL 데이터베이스
-- SQLModel을 사용한 안전한 ORM
+- SQLModel을 사용한 안전한 ORM (SQLAlchemy 기반)
 - User 모델: id, email, password, name, created_at, updated_at
 - 프로덕션급 관계형 데이터베이스로 안정적이고 확장 가능
+- 커넥션 풀링, 자동 재연결, 이벤트 리스너 등 고급 기능
 
 ### 2. Redis 캐시 및 큐
 - Redis를 이용한 캐싱
@@ -57,6 +58,38 @@ learning_fast_api/
 - 멀티 컨테이너 애플리케이션 관리
 - FastAPI, PostgreSQL, Redis 통합 관리
 - RQ Worker를 통한 백그라운드 작업 처리
+
+### 4. Request ID / Trace ID
+- 모든 요청에 고유한 Request ID 자동 부여
+- 응답 헤더에 `X-Request-ID` 포함
+- 로그에 Request ID 자동 추적으로 디버깅 용이
+
+### 5. CORS (Cross-Origin Resource Sharing)
+- CORS 미들웨어 설정으로 다양한 출처에서 API 호출 가능
+- 환경 변수로 허용 출처 설정 가능
+- Credentials, 메서드, 헤더 등 세밀한 제어
+
+### 6. 로깅 시스템
+- 구조화된 로깅 (Request ID 포함)
+- 콘솔 및 파일 로깅 (app.log, error.log)
+- 로그 레벨별 분리 (INFO, ERROR)
+- 모든 API 요청/응답 자동 로깅
+
+### 7. 응답 시간 측정
+- 모든 API 응답에 처리 시간 자동 측정
+- 응답 헤더에 `X-Process-Time` 포함 (초 단위)
+- 성능 모니터링 및 최적화에 활용
+
+### 8. 예외 처리
+- 전역 예외 핸들러로 일관된 에러 응답
+- Request ID를 포함한 에러 추적
+- 상세한 에러 로깅
+
+### 9. Alembic 데이터베이스 마이그레이션
+- SQLAlchemy + Alembic 연동
+- 자동 마이그레이션 생성 (autogenerate)
+- 버전 관리 및 롤백 지원
+- 프로덕션 환경 안전한 스키마 변경
 
 ## 설치 및 실행
 
@@ -129,6 +162,25 @@ uv pip install -e .
 # 또는 pip를 사용하는 경우
 pip install -e .
 ```
+
+#### 데이터베이스 마이그레이션 적용
+
+```bash
+# Alembic으로 데이터베이스 스키마 생성
+alembic upgrade head
+
+# 또는 헬퍼 스크립트 사용
+python migrate.py
+
+# 마이그레이션 상태 확인
+alembic current
+
+# 마이그레이션 히스토리 확인
+alembic history
+```
+
+**참고**: 프로덕션 환경에서는 반드시 Alembic 마이그레이션을 사용하세요.
+개발 환경에서만 `SQLModel.metadata.create_all()`을 사용할 수 있습니다.
 
 #### 개발 서버 실행
 
@@ -255,27 +307,28 @@ curl -X DELETE http://localhost:8001/api/v1/users/1 \
 
 ### `app/core/`
 - **config.py**: 환경 변수 관리 (Pydantic Settings)
-- **database.py**: PostgreSQL 데이터베이스 엔진, 세션 관리
+- **database.py**: PostgreSQL 데이터베이스 엔진, 세션 관리, SQLAlchemy 이벤트 리스너
 - **redis_queue.py**: Redis 연결, RQ 큐 설정
+- **security.py**: JWT 토큰 생성/검증, 패스워드 해싱
+- **middleware.py**: Request ID, 응답 시간 측정 미들웨어
+- **logging_config.py**: 로깅 설정 (파일/콘솔 로깅, Request ID 필터)
+- **exception_handlers.py**: 전역 예외 핸들러
 
-### `app/api/routes/`
+### `app/api/`
 - API 엔드포인트를 기능별로 분리
-- APIRouter를 사용하여 라우트 정의
-- `hello.py`: 기본 Hello API
-- `users.py`: User CRUD API
+- **auth/**: 인증 관련 API (회원가입, 로그인, 토큰 검증)
+- **users/**: User CRUD API
 
-### `app/models/`
-- SQLModel을 사용한 데이터베이스 모델
-- `user.py`: User 테이블 정의
+### `app/api/users/`
+- **models.py**: User 테이블 정의 (SQLModel)
+- **schemas.py**: UserCreate, UserUpdate, UserResponse (Pydantic)
+- **routes.py**: User API 엔드포인트
+- **service.py**: User 비즈니스 로직
 
-### `app/schemas/`
-- Pydantic 모델을 사용한 요청/응답 검증
-- `user.py`: UserCreate, UserUpdate, UserResponse
-
-### `app/services/`
-- 비즈니스 로직 구현
-- 데이터베이스 작업, 외부 API 호출 등
-- 향후 Task 정의 위치
+### `app/api/auth/`
+- **schemas.py**: UserLogin, Token (Pydantic)
+- **routes.py**: 인증 API 엔드포인트
+- **service.py**: 인증 비즈니스 로직
 
 ## 환경 변수
 
@@ -291,13 +344,25 @@ PROJECT_NAME=Learning FastAPI
 VERSION=0.1.0
 DESCRIPTION=FastAPI Learning Project
 
+# CORS Configuration
+BACKEND_CORS_ORIGINS=["*"]  # 프로덕션에서는 구체적인 도메인 지정 권장
+
 # Database Configuration (PostgreSQL)
 DATABASE_URL=postgresql://fastapi_user:fastapi_password@localhost:5432/fastapi_db
+DATABASE_ECHO=true  # SQL 쿼리 로깅 (개발 환경)
+DATABASE_POOL_SIZE=10
+DATABASE_MAX_OVERFLOW=20
 
 # Redis Configuration
 REDIS_HOST=localhost
 REDIS_PORT=7379
 REDIS_DB=0
+
+# JWT Configuration
+SECRET_KEY=your-secret-key-change-this-in-production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+```
 REDIS_URL=redis://localhost:7379/0
 ```
 
@@ -490,7 +555,7 @@ print(job.result)
 
 - **고급 인증**: OAuth2 소셜 로그인 (Google, GitHub, Kakao)
 - **역할 기반 접근 제어 (RBAC)**: 관리자, 일반 사용자 등 역할별 권한 관리
-- **미들웨어**: CORS, 로깅, 속도 제한, 요청 추적
+- **미들웨어**: ✅ CORS, ✅ 로깅, 속도 제한, ✅ 요청 추적
 - **백그라운드 작업**: 이메일 발송, 데이터 처리, 스케줄 작업
 - **파일 업로드**: S3, MinIO, local storage
 - **테스트**: pytest, pytest-asyncio, 통합 테스트
@@ -498,7 +563,81 @@ print(job.result)
 - **데이터베이스 마이그레이션**: Alembic을 통한 버전 관리
 - **API 버전 관리**: 다중 API 버전 지원
 - **레이트 제한**: 사용자별, IP별 요청 제한
-- **감시 및 로깅**: 구조화된 로깅, 에러 추적
+- **감시 및 로깅**: ✅ 구조화된 로깅, ✅ 에러 추적
+
+## 새로운 기능 사용법
+
+### Request ID / Trace ID
+
+모든 API 요청은 자동으로 고유한 Request ID를 부여받습니다:
+
+```bash
+# 요청
+curl -X GET http://localhost:8001/api/v1/users
+
+# 응답 헤더에 포함됨
+X-Request-ID: 550e8400-e29b-41d4-a716-446655440000
+X-Process-Time: 0.0234
+```
+
+클라이언트에서 Request ID를 지정할 수도 있습니다:
+
+```bash
+curl -X GET http://localhost:8001/api/v1/users \
+  -H "X-Request-ID: my-custom-request-id"
+```
+
+### 로그 확인
+
+로그 파일은 `logs/` 디렉토리에 저장됩니다:
+
+- `logs/app.log`: 모든 로그 (INFO, WARNING, ERROR)
+- `logs/error.log`: 에러 로그만 (ERROR)
+
+로그 예시:
+```
+2026-02-10 10:30:45,123 - app.api.users.routes - INFO - [RequestID: 550e8400-e29b-41d4-a716-446655440000] - 사용자 조회 요청 - UserID: 1
+2026-02-10 10:30:45,156 - app.api.users.routes - INFO - [RequestID: 550e8400-e29b-41d4-a716-446655440000] - 사용자 조회 완료 - UserID: 1, Email: user@example.com
+```
+
+### 응답 시간 측정
+
+모든 API 응답에는 처리 시간이 포함됩니다:
+
+```bash
+curl -i http://localhost:8001/api/v1/users
+
+# 응답 헤더
+HTTP/1.1 200 OK
+X-Request-ID: 550e8400-e29b-41d4-a716-446655440000
+X-Process-Time: 0.0234  # 초 단위
+```
+
+### CORS 설정
+
+CORS는 기본적으로 모든 출처를 허용하도록 설정되어 있습니다. 
+프로덕션 환경에서는 `.env` 파일에서 구체적인 도메인을 지정하세요:
+
+```dotenv
+BACKEND_CORS_ORIGINS=["https://yourdomain.com","https://app.yourdomain.com"]
+```
+
+### SQLAlchemy 고급 기능
+
+데이터베이스 연결 이벤트 리스너가 자동으로 로그를 기록합니다:
+
+```python
+# app/core/database.py에 정의됨
+@event.listens_for(Engine, "connect")
+def receive_connect(dbapi_conn, connection_record):
+    logger.info("데이터베이스 연결 성공")
+```
+
+커넥션 풀 설정:
+- `pool_size=10`: 기본 연결 풀 크기
+- `max_overflow=20`: 최대 추가 연결 수
+- `pool_recycle=3600`: 1시간마다 연결 재생성
+- `pool_timeout=30`: 연결 대기 시간 30초
 
 ## 참고 자료
 

@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = (
         "postgresql://fastapi_user:fastapi_password@localhost:5432/fastapi_db"
     )
+    DATABASE_ECHO: bool = True  # SQL 쿼리 로깅
+    DATABASE_POOL_SIZE: int = 10  # 커넥션 풀 크기
+    DATABASE_MAX_OVERFLOW: int = 20  # 최대 추가 연결 수
 
     # Redis settings
     REDIS_HOST: str = "localhost"
